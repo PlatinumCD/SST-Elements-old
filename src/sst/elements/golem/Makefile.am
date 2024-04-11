@@ -2,7 +2,7 @@
 #
 #
 
-AM_CPPFLAGS += /home/kadala/.local/lib/python3.10/site-packages/numpy/core/include \
+AM_CPPFLAGS += /home/aweatherly8/.local/lib/python3.10/site-packages/numpy/core/include \
 	-I$(top_srcdir)/src \
 	$(MPI_CPPFLAGS)
 
