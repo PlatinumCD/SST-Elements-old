@@ -2,7 +2,7 @@
 #
 #
 
-AM_CPPFLAGS += /usr/local/lib/python3.10/dist-packages/numpy/core/include \
+AM_CPPFLAGS += /home/kadala/.local/lib/python3.10/site-packages/numpy/core/include \
 	-I$(top_srcdir)/src \
 	$(MPI_CPPFLAGS)
 
@@ -16,7 +16,7 @@ libgolem_la_SOURCES = \
 	mmioTile.cc \
 	vroccanalog.h \
 	crossSimComputeArray.h \
-	testComputeArray.h
+	manualMVMComputeArray.h
 
 
 

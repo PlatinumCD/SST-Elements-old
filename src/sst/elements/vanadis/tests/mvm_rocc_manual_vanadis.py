@@ -281,18 +281,18 @@ arrayParams = {
     "max_instructions" : 8,
     "verbose" : 20,
     "mmioAddr" : 0,
+    "numArrays" : 2,
+    "arrayInputSize" : 3,
+    "arrayOutputSize" : 3
 }
 
 roccarrayParams = {
-    "numArrays" : 2,
-    "arrayInputSize" : 3,
-    "arrayOutputSize" : 3,
     "inputOperandSize" : 4,
     "outputOperandSize" : 4
 }
 
 roccParams.update(roccarrayParams)
-arrayParams.update(roccarrayParams)
+#arrayParams.update(roccarrayParams)
 
 l1dcacheParams = {
     "access_latency_cycles" : "2",
