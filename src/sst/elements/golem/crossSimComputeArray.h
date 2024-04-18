@@ -57,7 +57,10 @@ public:
         Event::HandlerBase * handler,
         std::vector<std::vector<float>>* ins,
         std::vector<std::vector<float>>* outs,
-	std::vector<std::vector<float>>* mats) : ComputeArray(id, params, tc, handler, ins, outs, mats) {
+	    std::vector<std::vector<float>>* mats,
+        std::vector<std::vector<uint32_t>>* ins_int,
+        std::vector<std::vector<uint32_t>>* outs_int,
+        std::vector<std::vector<uint32_t>>* mats_int) : ComputeArray(id, params, tc, handler, ins, outs, mats, ins_int, outs_int, mats_int) {
         
         //All operations have the same latency so just set it here
         //Because of the fixed latency just reset the TimeBase here from the TimeBase of parent component in genericArray

@@ -86,7 +86,7 @@ MMIOTile::MMIOTile(ComponentId_t id, Params& params) :
         out.fatal(CALL_INFO, -1, "Unable to load standardInterface subcomponent.\n");
     }
 
-    array = loadUserSubComponent<Golem::ComputeArray>("array", ComponentInfo::SHARE_NONE, clockTC, new SST::Event::Handler<MMIOTile>(this, &MMIOTile::handleArrayEvent), &arrayIns, &arrayOuts, &matrices);
+    array = loadUserSubComponent<Golem::ComputeArray>("array", ComponentInfo::SHARE_NONE, clockTC, new SST::Event::Handler<MMIOTile>(this, &MMIOTile::handleArrayEvent), &arrayIns, &arrayOuts, &matrices, &arrayIns_int, &arrayOuts_int, &matrices_int);
     if ( !array ) {
         out.fatal(CALL_INFO, -1, "Unable to load array model subcomponent.\n");
     }

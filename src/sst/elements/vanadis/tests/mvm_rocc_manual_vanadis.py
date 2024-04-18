@@ -292,7 +292,8 @@ roccarrayParams = {
 }
 
 roccParams.update(roccarrayParams)
-#arrayParams.update(roccarrayParams)
+roccParams.update(arrayParams)
+arrayParams.update(roccarrayParams)
 
 l1dcacheParams = {
     "access_latency_cycles" : "2",
@@ -380,7 +381,7 @@ class CPU_Builder:
         cpu_lsq.addParams(lsqParams)
         cpu_lsq.enableAllStatistics()
 
-        cpu_rocc = cpu.setSubComponent( "rocc", "golem.VanadisRoCCAnalog")
+        cpu_rocc = cpu.setSubComponent( "rocc", "golem.RoCCAnalog")
         cpu_rocc.addParams(roccParams)
         cpu_rocc.enableAllStatistics()
 

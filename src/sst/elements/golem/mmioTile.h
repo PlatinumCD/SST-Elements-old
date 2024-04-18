@@ -112,6 +112,9 @@ private:
     std::vector<std::vector<float>> arrayIns;
     std::vector<std::vector<float>> arrayOuts;
     std::vector<std::vector<float>> matrices;
+    std::vector<std::vector<uint32_t>> arrayIns_int;
+    std::vector<std::vector<uint32_t>> arrayOuts_int;
+    std::vector<std::vector<uint32_t>> matrices_int;
 
     // Even though MMIOTile does not need a clock the array objects uses the parent TimeConverter
     TimeConverter *clockTC;                 // Clock object

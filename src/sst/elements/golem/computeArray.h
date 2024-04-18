@@ -34,7 +34,8 @@ public:
         Event::HandlerBase*, 
         std::vector<std::vector<float>>*, 
         std::vector<std::vector<float>>*,
-	std::vector<std::vector<float>>*
+	    std::vector<std::vector<float>>*,
+        std::vector<std::vector<uint32_t>>*
     )
 
     SST_ELI_DOCUMENT_PARAMS(
@@ -46,19 +47,25 @@ public:
         Event::HandlerBase * handler,
         std::vector<std::vector<float>>* ins,
         std::vector<std::vector<float>>* outs,
-	std::vector<std::vector<float>>* mats) : SubComponent(id) {
+	    std::vector<std::vector<float>>* mats,
+        std::vector<std::vector<uint32_t>>* ins_int,
+        std::vector<std::vector<uint32_t>>* outs_int,
+        std::vector<std::vector<uint32_t>>* mats_int) : SubComponent(id) {
 
-        out.init("", params.find<int>("verbose", 1), 0, Output::STDOUT);
+            out.init("", params.find<int>("verbose", 1), 0, Output::STDOUT);
 
-        // Not error checking here because they should have been checked in the tile constructor
+            // Not error checking here because they should have been checked in the tile constructor
 
-        tileHandler = handler;
+            tileHandler = handler;
 
-        inVecs = ins;
-        outVecs = outs;
-	matrices = mats;
+            inVecs = ins;
+            outVecs = outs;
+            matrices = mats;
+            inVecs_int = ins_int;
+            outVecs_int = outs_int;
+            matrices_int = mats_int;
 
-        selfLink = configureSelfLink("Self", tc, new Event::Handler<ComputeArray>(this, &ComputeArray::handleSelfEvent));
+            selfLink = configureSelfLink("Self", tc, new Event::Handler<ComputeArray>(this, &ComputeArray::handleSelfEvent));
     }
 
 
@@ -104,6 +111,9 @@ protected:
     std::vector<std::vector<float>>* inVecs;
     std::vector<std::vector<float>>* outVecs;
     std::vector<std::vector<float>>* matrices;
+    std::vector<std::vector<uint32_t>>* inVecs_int;
+    std::vector<std::vector<uint32_t>>* outVecs_int;
+    std::vector<std::vector<uint32_t>>* matrices_int;
 
     SST::Link * selfLink; // self link for delay events
     SST::Event::HandlerBase * tileHandler; //Event handler to call in the tile

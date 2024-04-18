@@ -385,7 +385,7 @@ class CPU_Builder:
         cpu_lsq.addParams(lsqParams)
         cpu_lsq.enableAllStatistics()
 
-        cpu_rocc = cpu.setSubComponent( "rocc", "golem.VanadisRoCCAnalog")
+        cpu_rocc = cpu.setSubComponent( "rocc", "golem.RoCCAnalog")
         cpu_rocc.addParams(roccParams)
         cpu_rocc.enableAllStatistics()
 

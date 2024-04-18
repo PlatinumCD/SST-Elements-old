@@ -13,8 +13,8 @@
 // information, see the LICENSE file in the top level directory of the
 // distribution.
 
-#ifndef _H_VANADIS_ANALOG_ROCC
-#define _H_VANADIS_ANALOG_ROCC
+#ifndef _H_ANALOG_ROCC
+#define _H_ANALOG_ROCC
 
 #include <sst/core/output.h>
 #include <sst/core/subcomponent.h>
@@ -35,10 +35,10 @@ using namespace SST::Golem;
 namespace SST {
 namespace Golem {
 
-class VanadisRoCCAnalog : public SST::Vanadis::VanadisRoCCInterface {
+class RoCCAnalog : public SST::Vanadis::VanadisRoCCInterface {
 
 public:
-    SST_ELI_REGISTER_SUBCOMPONENT(VanadisRoCCAnalog, "golem", "VanadisRoCCAnalog",
+    SST_ELI_REGISTER_SUBCOMPONENT(RoCCAnalog, "golem", "RoCCAnalog",
                                           SST_ELI_ELEMENT_VERSION(1, 0, 0),
                                           "Implements a RoCC accelerator interface for the analog core",
                                           SST::Vanadis::VanadisRoCCInterface)
@@ -62,8 +62,8 @@ public:
 
     SST_ELI_DOCUMENT_STATISTICS({ "roccs_issued", "Count number of rocc instructions that are issued", "operations", 1 })
 
-    VanadisRoCCAnalog(ComponentId_t id, Params& params) : VanadisRoCCInterface(id, params),
-
+    RoCCAnalog(ComponentId_t id, Params& params) : VanadisRoCCInterface(id, params),
+    
         max_instructions(params.find<size_t>("max_instructions", 8)) {
 
         stat_roccs_issued = registerStatistic<uint64_t>("roccs_issued", "1");
@@ -81,26 +81,27 @@ public:
         output->verbose(CALL_INFO, 1, 0, "%s: numArrays: %d, arrayInputSize: %d, arrayOutputSize: %d \n",
             getName().c_str(), numArrays, arrayInputSize, arrayOutputSize);
 
-        std_mem_handlers = new VanadisRoCCAnalog::StandardMemHandlers(this, output);
+        std_mem_handlers = new RoCCAnalog::StandardMemHandlers(this, output);
 
         busy = false;
+        curr_resp = NULL;
 
         memInterface = loadUserSubComponent<Interfaces::StandardMem>(
             "memory_interface", ComponentInfo::SHARE_PORTS | ComponentInfo::INSERT_STATS, getTimeConverter("1ps"),
-            new StandardMem::Handler<VanadisRoCCAnalog>(
-                this, &VanadisRoCCAnalog::processIncomingDataCacheEvent));
+            new StandardMem::Handler<RoCCAnalog>(
+                this, &RoCCAnalog::processIncomingDataCacheEvent));
 
         array = loadUserSubComponent<Golem::ComputeArray>(
             "array", ComponentInfo::SHARE_NONE, getTimeConverter("1ps"), 
-            new SST::Event::Handler<VanadisRoCCAnalog>(
-                this, &VanadisRoCCAnalog::handleArrayEvent), &arrayIns, &arrayOuts, &matrices);
+            new SST::Event::Handler<RoCCAnalog>(
+                this, &RoCCAnalog::handleArrayEvent), &arrayIns, &arrayOuts, &matrices, &arrayIns_int, &arrayOuts_int, &matrices_int);
 
         if ( !array ) {
             output->fatal(CALL_INFO, -1, "Unable to load array model subcomponent.\n");
         }
     }
 
-    virtual ~VanadisRoCCAnalog() {
+    virtual ~RoCCAnalog() {
         for(auto roccCmd_q_itr = roccCmd_q.begin(); roccCmd_q_itr != roccCmd_q.end(); ) {
             delete (*roccCmd_q_itr);
             roccCmd_q_itr = roccCmd_q.erase(roccCmd_q_itr);
@@ -132,12 +133,18 @@ public:
         // Set the sizes of the array interface vectors
         arrayIns.resize(numArrays);
         arrayOuts.resize(numArrays);
-	matrices.resize(numArrays);
+	    matrices.resize(numArrays);
+        arrayIns_int.resize(numArrays);
+        arrayOuts_int.resize(numArrays);
+        matrices_int.resize(numArrays);
         arrayStates.resize(numArrays);
         for(int i = 0; i < numArrays; i++) {
             arrayIns[i].resize(arrayInputSize);
             arrayOuts[i].resize(arrayOutputSize);
     	    matrices[i].resize(arrayInputSize * arrayOutputSize);
+            arrayIns_int[i].resize(arrayInputSize);
+            arrayOuts_int[i].resize(arrayOutputSize);
+            matrices_int[i].resize(arrayInputSize * arrayOutputSize);
         }
 
         // Set the address delimiters
@@ -154,13 +161,16 @@ public:
 	    // Resize the matrix to fit the data
 	    for (int j = 0; j < arrayInputSize * arrayOutputSize; j++) {
 		    matrices[i][j] = 0;
+            matrices_int[i][j] = 0;
 	    }
 
             for (int j = 0; j < arrayInputSize; j++){
                 arrayIns[i][j] = 0;
+                arrayIns_int[i][j] = 0;
             }
             for (int j = 0; j < arrayOutputSize; j++){
                 arrayOuts[i][j] = 0;
+                arrayOuts_int[i][j] = 0;
             }
         }
 
@@ -189,27 +199,27 @@ public:
                 case 0x1: // Set Matrix
                 {
                     output->verbose(CALL_INFO, 2, 0, "Instruction read: mvm.set (MVM set matrix)\n");
-		    setMatrix();
+		            setMatrix();
                 } break;
                 case 0x2: // Load Vector
                 {
                     output->verbose(CALL_INFO, 2, 0, "Instruction read: mvm.l (MVM load vector)\n");
-		    loadVector();
+		            loadVector();
                 } break;
                 case 0x3: // Compute MVM
                 {
                     output->verbose(CALL_INFO, 2, 0, "Instruction read: mvm (MVM compute)\n");
-		    computeMVM();
+		            computeMVM();
                 } break;
                 case 0x4: // Store Vector
                 {
                     output->verbose(CALL_INFO, 2, 0, "Instruction read: mvm.s (MVM store vector)\n");
-		    storeVector();
+		            storeVector();
                 } break;
                 case 0x5: // Move Vector
                 {
                     output->verbose(CALL_INFO, 2, 0, "Instruction read: mvm.mv (MVM move vector)\n");
-		    moveVector();
+		            moveVector();
                 } break;
                 default: 
                 {
@@ -225,7 +235,7 @@ public:
         StandardMem::Request* load_req = nullptr;
 
         uint32_t load_matrix_flag = 0x0;
-	uint64_t matrix_size = arrayInputSize * arrayInputSize * inputOperandSize;
+	    uint64_t matrix_size = arrayInputSize * arrayInputSize * inputOperandSize;
 //        load_req = new StandardMem::Read(curr_cmd->rs1, matrix_size, load_matrix_flag, curr_cmd->rs1, curr_cmd->inst->ins_address, curr_cmd->inst->hw_thr);
         load_req = new StandardMem::Read(curr_cmd->rs1, matrix_size, load_matrix_flag, curr_cmd->rs1, 0, 0);
         output->verbose(CALL_INFO, 9, 0, "----> Read Req: physAddr: %llx, size: %llx, vAddr: %llx, inst ptr: %llx, tid: %llx\n", 
@@ -240,7 +250,7 @@ public:
     void loadVector() {
         StandardMem::Request* load_req = nullptr;
 
-	uint32_t load_vector_flag = 0x1;
+	    uint32_t load_vector_flag = 0x1;
         uint64_t vector_size = arrayInputSize * inputOperandSize;
 //        load_req = new StandardMem::Read(curr_cmd->rs1, vector_size, load_vector_flag, curr_cmd->rs1, curr_cmd->inst->ins_address, curr_cmd->inst->hw_thr);
         load_req = new StandardMem::Read(curr_cmd->rs1, vector_size, load_vector_flag, curr_cmd->rs1, 0, 0);
@@ -255,7 +265,7 @@ public:
     void computeMVM() {
         uint64_t rs1 = curr_cmd->rs1;
         arrayStates[rs1] = 1;
-	array->beginComputation(rs1);
+	    array->beginComputation(rs1);
     }
 
     void storeVector() {
@@ -263,7 +273,7 @@ public:
 
         uint64_t vector_size = arrayOutputSize * outputOperandSize;
         std::vector<uint8_t> payload(vector_size);	
-	uint64_t rs2 = curr_cmd->rs2;
+        uint64_t rs2 = curr_cmd->rs2;
 
         for (int i = 0; i < arrayOutputSize; i++) {
                 unsigned int ch = *reinterpret_cast<unsigned int*>(&arrayOuts[rs2][i]);
@@ -272,12 +282,12 @@ public:
                 }
         }
 
-	std::cout << "Stored array " << rs2 << ":" << std::endl;
-	for (int i = 0; i < arrayOutputSize; i++) {
-	   std::cout << arrayOuts[rs2][i] << " ";
-	}
-	std::cout << std::endl;
-	std::cout << std::endl;
+        std::cout << "Stored array " << rs2 << ":" << std::endl;
+        for (int i = 0; i < arrayOutputSize; i++) {
+            std::cout << arrayOuts[rs2][i] << " ";
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
 
         store_req = new StandardMem::Write(curr_cmd->rs1, 4, payload,
             false, 0, curr_cmd->rs1, 0, 0);
@@ -291,14 +301,14 @@ public:
             arrayIns[rs2][i] = arrayOuts[rs1][i];
         }
 
-	std::cout << "Moved array " << rs1 << " to array " << rs2 << ". Array " << rs2 << ":" << std::endl;
+	    std::cout << "Moved array " << rs1 << " to array " << rs2 << ". Array " << rs2 << ":" << std::endl;
         for (int i = 0; i < arrayInputSize; i++){
             std::cout << arrayIns[rs2][i] << " "; 
         }
-	std::cout << std::endl;
-	std::cout << std::endl;
+	    std::cout << std::endl;
+	    std::cout << std::endl;
 
-	completeRoCC(0);
+	    completeRoCC(0);
     }
  
 
@@ -326,9 +336,9 @@ public:
 
     class StandardMemHandlers : public Interfaces::StandardMem::RequestHandler {
     public:
-        friend class VanadisRoCCAnalog;
+        friend class RoCCAnalog;
 
-        StandardMemHandlers(VanadisRoCCAnalog* rocc, SST::Output* output) :
+        StandardMemHandlers(RoCCAnalog* rocc, SST::Output* output) :
                 Interfaces::StandardMem::RequestHandler(output), rocc(rocc) {output = output;}
         
         virtual ~StandardMemHandlers() {}
@@ -360,11 +370,11 @@ public:
                     rocc->output->verbose(CALL_INFO, 2, 0, "Set matrix read response detected\n");
 
                     uint32_t op_size = rocc->inputOperandSize;
-		    uint32_t num_cols = rocc->arrayInputSize;
+		            uint32_t num_cols = rocc->arrayInputSize;
                     uint32_t num_rows = ev->size / (num_cols * op_size); // compute number of rows in matrix
-		    unsigned char* matrix_data = ev->data.data();
+		            unsigned char* matrix_data = ev->data.data();
 
-		    rocc->array->setMatrix(matrix_data, rs2, num_rows, num_cols, op_size);
+		            rocc->array->setMatrix(matrix_data, rs2, num_rows, num_cols, op_size);
 
                     rocc->completeRoCC(0);
                 } break;
@@ -373,11 +383,11 @@ public:
                 {
                     rocc->output->verbose(CALL_INFO, 2, 0, "Input vector read response detected\n");
 
-		    uint32_t op_size = rocc->inputOperandSize;
-		    uint32_t num_elem = rocc->arrayInputSize;
-		    unsigned char* vector_data = ev->data.data();
+                    uint32_t op_size = rocc->inputOperandSize;
+                    uint32_t num_elem = rocc->arrayInputSize;
+                    unsigned char* vector_data = ev->data.data();
 
-		    rocc->array->setInputVector(vector_data, rs2, num_elem, op_size);
+                    rocc->array->setInputVector(vector_data, rs2, num_elem, op_size);
 
                     rocc->completeRoCC(0);
                 } break;
@@ -402,7 +412,7 @@ public:
             rocc->completeRoCC(0);
         }
     
-        VanadisRoCCAnalog* rocc;
+        RoCCAnalog* rocc;
         SST::Output* output;
     };
 
@@ -444,6 +454,9 @@ public:
     std::vector<std::vector<float>> arrayIns;
     std::vector<std::vector<float>> arrayOuts;
     std::vector<std::vector<float>> matrices;
+    std::vector<std::vector<uint32_t>> arrayIns_int;
+    std::vector<std::vector<uint32_t>> arrayOuts_int;
+    std::vector<std::vector<uint32_t>> matrices_int;
     float* crossSim_output;
     std::vector<char> arrayStates;
 
