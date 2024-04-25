@@ -214,8 +214,10 @@ public:
         auto& outVec = (*outVecs)[arrayID];
         auto& outVec_int = (*outVecs_int)[arrayID];
         
-        float vector_scale_factor = (*vector_scale_factors)[arrayID];
-        float matrix_scale_factor = (*matrix_scale_factors)[arrayID];
+        float vector_scale_factor = 0.0f;
+        for (size_t i = 0; i < num_cols; i++) {
+            if (fabs(outVec[i]) > vector_scale_factor) vector_scale_factor = fabs(outVec[i]);
+        }
 
         uint32_t max_type_value = pow(2, op_size * 8);
         for (uint32_t i = 0; i < num_cols; i++) {
