@@ -276,7 +276,7 @@ public:
         uint64_t rs2 = curr_cmd->rs2;
 
         for (int i = 0; i < arrayOutputSize; i++) {
-                unsigned int ch = *reinterpret_cast<unsigned int*>(&arrayOuts[rs2][i]);
+                unsigned int ch = *reinterpret_cast<unsigned int*>(&arrayOuts_int[rs2][i]);
                 for (int j = 0; j < outputOperandSize; j++) {
                         payload.at(i*outputOperandSize + j) = (ch >> j*8) & 0xff;
                 }
@@ -284,7 +284,7 @@ public:
 
         std::cout << "Stored array " << rs2 << ":" << std::endl;
         for (int i = 0; i < arrayOutputSize; i++) {
-            std::cout << arrayOuts[rs2][i] << " ";
+            std::cout << (uint32_t)arrayOuts_int[rs2][i] << " ";
         }
         std::cout << std::endl;
         std::cout << std::endl;
@@ -298,12 +298,12 @@ public:
         uint64_t rs1 = curr_cmd->rs1;
         uint64_t rs2 = curr_cmd->rs2;
         for (int i = 0; i < arrayInputSize; i++){
-            arrayIns[rs2][i] = arrayOuts[rs1][i];
+            arrayIns_int[rs2][i] = arrayOuts_int[rs1][i];
         }
 
 	    std::cout << "Moved array " << rs1 << " to array " << rs2 << ". Array " << rs2 << ":" << std::endl;
         for (int i = 0; i < arrayInputSize; i++){
-            std::cout << arrayIns[rs2][i] << " "; 
+            std::cout << arrayIns_int[rs2][i] << " "; 
         }
 	    std::cout << std::endl;
 	    std::cout << std::endl;

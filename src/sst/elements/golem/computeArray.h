@@ -35,6 +35,8 @@ public:
         std::vector<std::vector<float>>*, 
         std::vector<std::vector<float>>*,
 	    std::vector<std::vector<float>>*,
+        std::vector<std::vector<uint32_t>>*,
+        std::vector<std::vector<uint32_t>>*,
         std::vector<std::vector<uint32_t>>*
     )
 

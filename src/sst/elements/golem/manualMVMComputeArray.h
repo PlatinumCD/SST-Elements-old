@@ -156,9 +156,14 @@ public:
         auto& outVec = (*outVecs)[arrayID];
         auto& inVec = (*inVecs)[arrayID];
         auto& matrix = (*matrices)[arrayID];
+
+        auto& outVec_ints = (*outVecs_int)[arrayID];
+        auto& inVec_ints = (*inVecs_int)[arrayID];
+        auto& matrix_ints = (*matrices_int)[arrayID];
     
         for (int i = 0; i < arrayOutSize; i++) {
             outVec[i] = 0.0;
+            outVec_ints[i] = 0.0;
         }
     
         std::cout << "Manual MVM on array " << arrayID << ":" << std::endl;
@@ -167,6 +172,15 @@ public:
                 outVec[row] += matrix[row * arrayInSize + col] * inVec[col];
             }
             std::cout << outVec[row] << " ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "Manual Integer MVM on array " << arrayID << ":" << std::endl;
+        for (auto row = 0; row < arrayOutSize; row++) {
+            for (auto col = 0; col < arrayInSize; col++) {
+                outVec_ints[row] += matrix_ints[row * arrayInSize + col] * inVec_ints[col];
+            }
+            std::cout << outVec_ints[row] << " ";
         }
         std::cout << std::endl;
     }

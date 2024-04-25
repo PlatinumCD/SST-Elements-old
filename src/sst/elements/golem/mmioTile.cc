@@ -18,11 +18,8 @@
 #include "mmioTile.h"
 #include "golemUtil.h"
 
-#ifdef MANUAL_COMPUTE_ARRAY
-	#include "manualMVMComputeArray.h"
-#else
-	#include "crossSimComputeArray.h"
-#endif
+#include "manualMVMComputeArray.h"
+#include "crossSimComputeArray.h"
 
 using namespace SST;
 using namespace SST::Interfaces;
