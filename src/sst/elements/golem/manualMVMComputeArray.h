@@ -202,7 +202,7 @@ public:
         }
         std::cout << std::endl;
 
-        dequantize(arrayID, arrayOutSize, arrayInSize, inputOperandSize);
+        quantize(arrayID, arrayOutSize, arrayInSize, inputOperandSize);
     }
     
     //Since we set the timebase in the constructor the latency is just 1 timebase
