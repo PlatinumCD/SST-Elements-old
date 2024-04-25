@@ -109,6 +109,8 @@ protected:
     uint32_t numArrays; //Number of arrays in this tile
     uint32_t arrayInSize; //Size of arrayIn buffer
     uint32_t arrayOutSize; //Size of arrayOut buffer
+    uint32_t inputOperandSize; //Size of a single input value
+    uint32_t outputOperandSize; //Size of a single output value
 
     std::vector<std::vector<float>>* inVecs;
     std::vector<std::vector<float>>* outVecs;
@@ -116,6 +118,9 @@ protected:
     std::vector<std::vector<uint32_t>>* inVecs_int;
     std::vector<std::vector<uint32_t>>* outVecs_int;
     std::vector<std::vector<uint32_t>>* matrices_int;
+
+    std::vector<float>* vector_scale_factors;
+    std::vector<float>* matrix_scale_factors;
 
     SST::Link * selfLink; // self link for delay events
     SST::Event::HandlerBase * tileHandler; //Event handler to call in the tile

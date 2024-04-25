@@ -221,6 +221,16 @@ public:
                     output->verbose(CALL_INFO, 2, 0, "Instruction read: mvm.mv (MVM move vector)\n");
 		            moveVector();
                 } break;
+                case 0x6: // Get device info
+                {
+                    output->verbose(CALL_INFO, 2, 0, "Instruction read: mvm.i (MVM get info)\n");
+		            getInfo();
+                } break;
+                case 0x7: // Set scale factor
+                {
+                    output->verbose(CALL_INFO, 2, 0, "Instruction read: mvm.sfu (MVM scale factor upload)\n");
+		            setScaleFactor();
+                } break;
                 default: 
                 {
                     output->verbose(CALL_INFO, 2, 0, "ERROR: unrecognized RoCC func7\n");
@@ -309,6 +319,14 @@ public:
 	    std::cout << std::endl;
 
 	    completeRoCC(0);
+    }
+
+    void getInfo() {
+        
+    }
+
+    void setScaleFactor() {
+        
     }
  
 

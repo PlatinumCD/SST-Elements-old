@@ -22,6 +22,7 @@
 #include "computeArray.h"
 
 #include <vector>
+#include <math.h>
 
 namespace SST {
 namespace Golem {
@@ -43,6 +44,8 @@ public:
         {"numArrays",          "Number of distinct arrays in the the tile.", "1"},
         {"arrayInputSize",     "Length of input vector. Implies array rows."},
         {"arrayOutputSize",    "Length of output vector. Implies array columns."},
+        {"inputOperandSize",     "number of bytes in a single input value"},
+        {"outputOperandSize",    "number of bytes in a single output value"},
     )
 
     ManualMVMComputeArray(ComponentId_t id, Params& params, 
@@ -64,6 +67,13 @@ public:
         numArrays = params.find<uint64_t>("numArrays", 1);
         arrayInSize = params.find<uint64_t>("arrayInputSize");
         arrayOutSize = params.find<uint64_t>("arrayOutputSize");
+        inputOperandSize = params.find<uint64_t>("inputOperandSize");
+        outputOperandSize = params.find<uint64_t>("outputOperandSize");
+
+        matrix_scale_factors = new std::vector<float>;
+        vector_scale_factors = new std::vector<float>;
+        matrix_scale_factors->resize(numArrays);
+        vector_scale_factors->resize(numArrays);
 
         out.init("", params.find<int>("verbose", 1), 0, Output::STDOUT);
     }
@@ -99,14 +109,17 @@ public:
             }
         }
 
+        float scale_factor = 0.0f;
         std::cout << "Matrix for array " << arrayID << ":" << std::endl;
         for (auto i = 0; i < num_rows; i++) {
             for (auto j = 0; j < num_cols; j++) {
+                if (fabs(matrix[i * num_cols + j]) > scale_factor) scale_factor = fabs(matrix[i * num_cols + j]);
                 std::cout << matrix[i * num_cols + j] << " ";
             }
             std::cout << std::endl;
         }
         std::cout << std::endl;
+        (*matrix_scale_factors)[arrayID] = scale_factor;
 
         std::cout << "Integer matrix for array " << arrayID << ":" << std::endl;
         for (auto i = 0; i < num_rows; i++) {
@@ -136,12 +149,15 @@ public:
             inVec[i] = value;
         }
 
+        float scale_factor = 0.0f;
         std::cout << "Loaded array " << arrayID << ":" << std::endl;
         for (int i = 0; i < num_cols; i++) {
+            if (fabs(inVec[i]) > scale_factor) scale_factor = fabs(inVec[i]);
             std::cout << inVec[i] << " ";
         }
         std::cout << std::endl;
         std::cout << std::endl;
+        (*vector_scale_factors)[arrayID] = scale_factor;
 
         std::cout << "Loaded integer array " << arrayID << ":" << std::endl;
         for (int i = 0; i < num_cols; i++) {
@@ -153,6 +169,8 @@ public:
 
 
     virtual void compute(uint32_t arrayID) override {
+        dequantize(arrayID, arrayOutSize, arrayInSize, inputOperandSize);
+
         auto& outVec = (*outVecs)[arrayID];
         auto& inVec = (*inVecs)[arrayID];
         auto& matrix = (*matrices)[arrayID];
@@ -183,11 +201,47 @@ public:
             std::cout << outVec_ints[row] << " ";
         }
         std::cout << std::endl;
+
+        dequantize(arrayID, arrayOutSize, arrayInSize, inputOperandSize);
     }
     
     //Since we set the timebase in the constructor the latency is just 1 timebase
     virtual SimTime_t getArrayLatency(uint32_t arrayID) {
         return 1;
+    }
+
+    void quantize(uint32_t arrayID, uint32_t num_rows, uint32_t num_cols, uint32_t op_size) {
+        auto& outVec = (*outVecs)[arrayID];
+        auto& outVec_int = (*outVecs_int)[arrayID];
+        
+        float vector_scale_factor = (*vector_scale_factors)[arrayID];
+        float matrix_scale_factor = (*matrix_scale_factors)[arrayID];
+
+        uint32_t max_type_value = pow(2, op_size * 8);
+        for (uint32_t i = 0; i < num_cols; i++) {
+            outVec_int[i] = std::lround(outVec[i] / vector_scale_factor * max_type_value);
+        }
+    }
+
+    void dequantize(uint32_t arrayID, uint32_t num_rows, uint32_t num_cols, uint32_t op_size) {
+        auto& inVec = (*inVecs)[arrayID];
+        auto& inVec_int = (*inVecs_int)[arrayID];
+        auto& matrix = (*matrices)[arrayID];
+        auto& matrix_int = (*matrices_int)[arrayID];
+
+        float vector_scale_factor = (*vector_scale_factors)[arrayID];
+        float matrix_scale_factor = (*matrix_scale_factors)[arrayID];
+
+        uint32_t max_type_value = pow(2, op_size * 8);
+        for (uint32_t i = 0; i < num_cols; i++) {
+            inVec[i] = inVec_int[i] * vector_scale_factor * max_type_value;
+        }
+
+        for (uint32_t i = 0; i < num_rows; i++) { // for each row in matrix
+            for (uint32_t j = 0; j < num_cols; j++) { // for each entry in a matrix row
+                matrix[i * num_cols + j] = matrix_int[i * num_cols + j] * matrix_scale_factor * max_type_value;
+            }
+        }
     }
 
 protected:
