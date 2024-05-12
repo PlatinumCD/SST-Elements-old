@@ -227,9 +227,9 @@ public:
 
         uint32_t load_matrix_flag = 0x0;
         uint64_t matrix_size = arrayInputSize * arrayInputSize * inputOperandSize;
-        load_req = new StandardMem::Read(curr_cmd->rs1, matrix_size, load_matrix_flag,  curr_cmd->rs1, curr_cmd->inst->ins_address, curr_cmd->inst->hw_thr);
+        load_req = new StandardMem::Read(curr_cmd->rs1, matrix_size, load_matrix_flag,  curr_cmd->rs1, 0, 0);
         output->verbose(CALL_INFO, 9, 0, "----> Read Req: physAddr: %llx, size: %llx, vAddr: %llx, inst ptr: %llx, tid: %llx\n", 
-                        curr_cmd->rs1, matrix_size, curr_cmd->rs1, curr_cmd->inst->ins_address, curr_cmd->inst->hw_thr);
+                        curr_cmd->rs1, matrix_size, curr_cmd->rs1, 0, 0);
 
         assert(load_req != nullptr);
         memInterface->send(load_req);
@@ -241,9 +241,9 @@ public:
 
 	uint32_t load_vector_flag = 0x1;
         uint64_t vector_size = arrayInputSize * inputOperandSize;
-        load_req = new StandardMem::Read(curr_cmd->rs1, vector_size, load_vector_flag, curr_cmd->rs1, curr_cmd->inst->ins_address, curr_cmd->inst->hw_thr);
+        load_req = new StandardMem::Read(curr_cmd->rs1, vector_size, load_vector_flag, curr_cmd->rs1, 0, 0);
         output->verbose(CALL_INFO, 9, 0, "----> Read Req: physAddr: %llx, size: %llx, vAddr: %llx, inst ptr: %llx, tid: %llx\n", 
-                        curr_cmd->rs1, vector_size, curr_cmd->rs1, curr_cmd->inst->ins_address, curr_cmd->inst->hw_thr);
+                        curr_cmd->rs1, vector_size, curr_cmd->rs1, 0, 0);
 
         assert(load_req != nullptr);
         memInterface->send(load_req);
