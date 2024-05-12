@@ -57,7 +57,8 @@ public:
         Event::HandlerBase * handler,
         std::vector<std::vector<float>>* ins,
         std::vector<std::vector<float>>* outs,
-	std::vector<std::vector<float>>* mats) : ComputeArray(id, params, tc, handler, ins, outs, mats) {
+        std::vector<std::vector<float>>* mats)
+    : ComputeArray(id, params, tc, handler, ins, outs, mats) {
         
         //All operations have the same latency so just set it here
         //Because of the fixed latency just reset the TimeBase here from the TimeBase of parent component in genericArray
@@ -82,22 +83,23 @@ public:
         npy_intp arrayInDim [1] {size};
         int arrayInNumDims = 1;
 
-	// Create Numpy matrices/arrays from mats, ins
-	pyMatrix = new PyObject*[numArrays];
-	npMatrix = new PyArrayObject*[numArrays];
+        // Create Numpy matrices/arrays from mats, ins
+        pyMatrix = new PyObject*[numArrays];
+        npMatrix = new PyArrayObject*[numArrays];
 
-	pyArrayIn = new PyObject*[numArrays];
-	npArrayIn = new PyArrayObject*[numArrays];
-	for (int i = 0; i < numArrays; i++) {
+        pyArrayIn = new PyObject*[numArrays];
+        npArrayIn = new PyArrayObject*[numArrays];
+        for (int i = 0; i < numArrays; i++) {
             auto& cMatrix = (*matrices)[i];
-	    auto& cArrayIn = (*inVecs)[i];
+            auto& cArrayIn = (*inVecs)[i];
 
-	    pyMatrix[i] = PyArray_SimpleNewFromData(matrixNumDims, matrixDims, NPY_FLOAT32, reinterpret_cast<void*> (cMatrix.data()));
-	    npMatrix[i] = reinterpret_cast<PyArrayObject*>(pyMatrix[i]);
-
-	    pyArrayIn[i] = PyArray_SimpleNewFromData(arrayInNumDims, arrayInDim, NPY_FLOAT32, reinterpret_cast<void*> (cArrayIn.data()));
+            pyMatrix[i] = PyArray_SimpleNewFromData(matrixNumDims, matrixDims, 
+                    NPY_FLOAT32, reinterpret_cast<void*> (cMatrix.data()));
+            npMatrix[i] = reinterpret_cast<PyArrayObject*>(pyMatrix[i]);
+            pyArrayIn[i] = PyArray_SimpleNewFromData(arrayInNumDims, arrayInDim,
+                    NPY_FLOAT32, reinterpret_cast<void*> (cArrayIn.data()));
             npArrayIn[i] = reinterpret_cast<PyArrayObject*>(pyArrayIn[i]);
-	}
+        }
 
         //import CrossSim
         crossSim = PyImport_ImportModule("simulator");
@@ -120,7 +122,7 @@ public:
 
         if (CrossSimJSON.empty()) {
             crossSim_params = PyObject_CallFunction(paramsConstructor, NULL);
-	} else {
+        } else {
             PyObject* paramsConstructorJSON = PyObject_GetAttrString(paramsConstructor, "from_json");
             PyObject* jsonArgs = Py_BuildValue("(s)", CrossSimJSON.c_str());
             crossSim_params = PyObject_CallObject(paramsConstructorJSON, jsonArgs);
@@ -132,10 +134,10 @@ public:
         }
 
         // Create the cores
-	cores = new PyObject*[numArrays];
-	setMatrixFunction = new PyObject*[numArrays];
-	runMVM = new PyObject*[numArrays];
-	for (int i = 0; i < numArrays; i++) {
+        cores = new PyObject*[numArrays];
+        setMatrixFunction = new PyObject*[numArrays];
+        runMVM = new PyObject*[numArrays];
+        for (int i = 0; i < numArrays; i++) {
             cores[i] = PyObject_CallFunctionObjArgs(AnalogCoreConstructor, npMatrix[i], crossSim_params, NULL);
             if (!cores[i]) {
                 std::cout << "Call to AnalogCore failed" << std::endl;
@@ -153,7 +155,7 @@ public:
                 std::cout << "Set core.run_xbar_mvm failed" << std::endl;
                 PyErr_Print();
             }
-	}
+        }
     }
 
     virtual void setup() override {}
@@ -163,35 +165,35 @@ public:
     virtual void setMatrix(unsigned char* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols, uint32_t op_size) override {
         auto& matrix = (*matrices)[arrayID];
 
-	// Resize the matrix to fit the data
-	matrix.resize(num_rows * num_cols);
+        // Resize the matrix to fit the data
+        matrix.resize(num_rows * num_cols);
 
-	// Build matrix from read response data
-	for (uint32_t i = 0; i < num_rows; i++) { // for each row in matrix
-		for (uint32_t j = 0; j < num_cols; j++) { // for each entry in a matrix row
-			uint32_t elem_start = (i * num_rows * op_size) + (j * op_size);
-			uint32_t ints_as_uint = (data[(elem_start + 3)] << 24) |
-						(data[(elem_start + 2)] << 16) |
-						(data[(elem_start + 1)] << 8)  |
-						data[elem_start];
+        // Build matrix from read response data
+        for (uint32_t i = 0; i < num_rows; i++) { // for each row in matrix
+            for (uint32_t j = 0; j < num_cols; j++) { // for each entry in a matrix row
+                uint32_t elem_start = (i * num_rows * op_size) + (j * op_size);
+                uint32_t ints_as_uint = (data[(elem_start + 3)] << 24) |
+                            (data[(elem_start + 2)] << 16) |
+                            (data[(elem_start + 1)] << 8)  |
+                            data[elem_start];
 
-			// std::cout << "Element (" << i << ", " << j << "): " 
-			// << ":   0x" << std::setfill('0') << std::setw(8) 
-			// << std::hex << (0xffffffff & ints_as_uint) << std::dec << std::endl;
+                // std::cout << "Element (" << i << ", " << j << "): " 
+                // << ":   0x" << std::setfill('0') << std::setw(8) 
+                // << std::hex << (0xffffffff & ints_as_uint) << std::dec << std::endl;
 
-			float value = *reinterpret_cast<float*>(&ints_as_uint);
-			matrix[i * num_cols + j] = value;
-		}
-	}
+                float value = *reinterpret_cast<float*>(&ints_as_uint);
+                matrix[i * num_cols + j] = value;
+            }
+        }
 
-	std::cout << "Matrix for array " << arrayID << ":" << std::endl;
-	for (auto i = 0; i < num_rows; i++) {
-		for (auto j = 0; j < num_cols; j++) {
-			std::cout << matrix[i * num_cols + j] << " ";
-		}
-		std::cout << std::endl;
-	}
-	std::cout << std::endl;
+        std::cout << "Matrix for array " << arrayID << ":" << std::endl;
+        for (auto i = 0; i < num_rows; i++) {
+            for (auto j = 0; j < num_cols; j++) {
+                std::cout << matrix[i * num_cols + j] << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
 
         status = PyObject_CallFunctionObjArgs(setMatrixFunction[arrayID], npMatrix[arrayID], NULL); //no return, just for error checking
         if (!status) {
@@ -203,46 +205,45 @@ public:
     virtual void setInputVector(unsigned char* data, uint32_t arrayID, uint32_t num_elem, uint32_t op_size) override {
         auto& inVec = (*inVecs)[arrayID];
 
-	// build input vector from read response
-	for (uint32_t i = 0; i < num_elem; i++) { // for each entry in input vector
-		uint32_t start = i * op_size;
-		uint32_t ints_as_uint = (data[(start + 3)] << 24) |
-					(data[(start + 2)] << 16) |
-					(data[(start + 1)] << 8)  |
-					data[start];
+        // build input vector from read response
+        for (uint32_t i = 0; i < num_elem; i++) { // for each entry in input vector
+            uint32_t start = i * op_size;
+            uint32_t ints_as_uint = (data[(start + 3)] << 24) |
+                                (data[(start + 2)] << 16) |
+                                (data[(start + 1)] << 8)  |
+                                data[start];
 
-		// std::cout << "I(" << i << "): " << std::setfill('0') << std::setw(8) << std::hex << (0xffffffff & ints_as_uint) << std::endl;
-		float value = *reinterpret_cast<float*>(&ints_as_uint);
-		inVec[i] = value;
-	}
+            // std::cout << "I(" << i << "): " << std::setfill('0') << std::setw(8) << std::hex << (0xffffffff & ints_as_uint) << std::endl;
+            float value = *reinterpret_cast<float*>(&ints_as_uint);
+            inVec[i] = value;
+        }
 
-	std::cout << "Loaded array " << arrayID << ":" << std::endl;
-	for (int i = 0; i < num_elem; i++) {
-		std::cout << inVec[i] << " ";
-	}
-	std::cout << std::endl;
-	std::cout << std::endl;
+        std::cout << "Loaded array " << arrayID << ":" << std::endl;
+        for (int i = 0; i < num_elem; i++) {
+            std::cout << inVec[i] << " ";
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
     }
 
     virtual void compute(uint32_t arrayID) override {
-	auto& outVec = (*outVecs)[arrayID];
+        auto& outVec = (*outVecs)[arrayID];
 
-	// Call MVM
-	pyArrayOut = PyObject_CallFunctionObjArgs(runMVM[arrayID], npArrayIn[arrayID], NULL);
-	if (nullptr == pyArrayOut) {
-		std::cout << "Run MVM Call Failed" << std::endl;
-		PyErr_Print();
-	}
-	npArrayOut = reinterpret_cast<PyArrayObject*> (pyArrayOut);
-	cArrayOut = reinterpret_cast<float*> (PyArray_DATA(npArrayOut));
-	int len = PyArray_SIZE(npArrayOut);
-	std::copy(cArrayOut, cArrayOut + len, outVec.begin());
-		
+        // Call MVM
+        pyArrayOut = PyObject_CallFunctionObjArgs(runMVM[arrayID], npArrayIn[arrayID], NULL);
+        if (nullptr == pyArrayOut) {
+            std::cout << "Run MVM Call Failed" << std::endl;
+            PyErr_Print();
+        }
+        npArrayOut = reinterpret_cast<PyArrayObject*> (pyArrayOut);
+        cArrayOut = reinterpret_cast<float*> (PyArray_DATA(npArrayOut));
+        int len = PyArray_SIZE(npArrayOut);
+        std::copy(cArrayOut, cArrayOut + len, outVec.begin());
         std::cout << "CrossSim MVM on array " << arrayID << ":" << std::endl;
-	for (int i = 0; i < size; i++) {
-		std::cout << outVec[i] << " ";
-	}
-	std::cout << std::endl;
+        for (int i = 0; i < size; i++) {
+            std::cout << outVec[i] << " ";
+        }
+        std::cout << std::endl;
     }
 
     //Since we set the timebase in the constructor the latency is just 1 timebase

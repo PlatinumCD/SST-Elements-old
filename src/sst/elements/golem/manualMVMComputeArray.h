@@ -50,7 +50,8 @@ public:
         Event::HandlerBase * handler,
         std::vector<std::vector<float>>* ins,
         std::vector<std::vector<float>>* outs,
-	std::vector<std::vector<float>>* mats) : ComputeArray(id, params, tc, handler, ins, outs, mats) {
+	    std::vector<std::vector<float>>* mats) 
+    : ComputeArray(id, params, tc, handler, ins, outs, mats) {
         
         //All operations have the same latency so just set it here
         //Because of the fixed latency just reset the TimeBase here from the TimeBase of parent component in genericArray
@@ -73,59 +74,59 @@ public:
     virtual void setMatrix(unsigned char* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols, uint32_t op_size) override {
         auto& matrix = (*matrices)[arrayID];
 
-	// Resize the matrix to fit the data
-	matrix.resize(num_rows * num_cols);
+        // Resize the matrix to fit the data
+        matrix.resize(num_rows * num_cols);
 
-	// Build matrix from read response data
-	for (uint32_t i = 0; i < num_rows; i++) { // for each row in matrix
-		for (uint32_t j = 0; j < num_cols; j++) { // for each entry in a matrix row
-			uint32_t elem_start = (i * num_rows * op_size) + (j * op_size);
-			uint32_t ints_as_uint = (data[(elem_start + 3)] << 24) |
-						(data[(elem_start + 2)] << 16) |
-						(data[(elem_start + 1)] << 8)  |
-						data[elem_start];
+        // Build matrix from read response data
+        for (uint32_t i = 0; i < num_rows; i++) { // for each row in matrix
+            for (uint32_t j = 0; j < num_cols; j++) { // for each entry in a matrix row
+                uint32_t elem_start = (i * num_rows * op_size) + (j * op_size);
+                uint32_t ints_as_uint = (data[(elem_start + 3)] << 24) |
+                            (data[(elem_start + 2)] << 16) |
+                            (data[(elem_start + 1)] << 8)  |
+                            data[elem_start];
 
-			// std::cout << "Element (" << i << ", " << j << "): " 
-			// << ":   0x" << std::setfill('0') << std::setw(8) 
-			// << std::hex << (0xffffffff & ints_as_uint) << std::dec << std::endl;
+                // std::cout << "Element (" << i << ", " << j << "): " 
+                // << ":   0x" << std::setfill('0') << std::setw(8) 
+                // << std::hex << (0xffffffff & ints_as_uint) << std::dec << std::endl;
 
-			float value = *reinterpret_cast<float*>(&ints_as_uint);
-			matrix[i * num_cols + j] = value;
-		}
-	}
+                float value = *reinterpret_cast<float*>(&ints_as_uint);
+                matrix[i * num_cols + j] = value;
+            }
+        }
 
-	std::cout << "Matrix for array " << arrayID << ":" << std::endl;
-	for (auto i = 0; i < num_rows; i++) {
-		for (auto j = 0; j < num_cols; j++) {
-			std::cout << matrix[i * num_cols + j] << " ";
-		}
-		std::cout << std::endl;
-	}
-	std::cout << std::endl;
+        std::cout << "Matrix for array " << arrayID << ":" << std::endl;
+        for (auto i = 0; i < num_rows; i++) {
+            for (auto j = 0; j < num_cols; j++) {
+                std::cout << matrix[i * num_cols + j] << " ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
     }
 
     virtual void setInputVector(unsigned char* data, uint32_t arrayID, uint32_t num_cols, uint32_t op_size) override {
         auto& inVec = (*inVecs)[arrayID];
 
-	// build input vector from read response
-	for (uint32_t i = 0; i < num_cols; i++) { // for each entry in input vector
-		uint32_t start = i * op_size;
-		uint32_t ints_as_uint = (data[(start + 3)] << 24) |
-					(data[(start + 2)] << 16) |
-					(data[(start + 1)] << 8)  |
-					data[start];
+        // build input vector from read response
+        for (uint32_t i = 0; i < num_cols; i++) { // for each entry in input vector
+            uint32_t start = i * op_size;
+            uint32_t ints_as_uint = (data[(start + 3)] << 24) |
+                        (data[(start + 2)] << 16) |
+                        (data[(start + 1)] << 8)  |
+                        data[start];
 
-		// std::cout << "I(" << i << "): " << std::setfill('0') << std::setw(8) << std::hex << (0xffffffff & ints_as_uint) << std::endl;
-		float value = *reinterpret_cast<float*>(&ints_as_uint);
-		inVec[i] = value;
-	}
+            // std::cout << "I(" << i << "): " << std::setfill('0') << std::setw(8) << std::hex << (0xffffffff & ints_as_uint) << std::endl;
+            float value = *reinterpret_cast<float*>(&ints_as_uint);
+            inVec[i] = value;
+        }
 
-	std::cout << "Loaded array " << arrayID << ":" << std::endl;
-	for (int i = 0; i < num_cols; i++) {
-		std::cout << inVec[i] << " ";
-	}
-	std::cout << std::endl;
-	std::cout << std::endl;
+        std::cout << "Loaded array " << arrayID << ":" << std::endl;
+        for (int i = 0; i < num_cols; i++) {
+            std::cout << inVec[i] << " ";
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
     }
 
 
