@@ -55,9 +55,9 @@ public:
     CrossSimComputeArray(ComponentId_t id, Params& params, 
         TimeConverter * tc,
         Event::HandlerBase * handler,
-        std::vector<std::vector<float>>* ins,
-        std::vector<std::vector<float>>* outs,
-        std::vector<std::vector<float>>* mats)
+        std::vector<std::vector<int64_t>>* ins,
+        std::vector<std::vector<int64_t>>* outs,
+        std::vector<std::vector<int64_t>>* mats)
     : ComputeArray(id, params, tc, handler, ins, outs, mats) {
         
         //All operations have the same latency so just set it here
@@ -70,12 +70,13 @@ public:
         import_array1();
         size = params.find<uint64_t>("arrayInputSize");
         numArrays = params.find<uint64_t>("numArrays", 1);
-        inputOperandSize = params.find<uint64_t>("inputOperandSize", 1);
+        inputOperandSize = params.find<uint64_t>("inputOperandSize", 4);
+        outputOperandSize = params.find<uint64_t>("outputOperandSize", 4);
         CrossSimJSON = params.find<std::string>("CrossSimJSON", std::string());
     }
 
     virtual void init(unsigned int phase) override {
-	// Matrix Dimensions
+        // Matrix Dimensions
         npy_intp matrixDims[2] {size,size};
         int matrixNumDims = 2;
 
@@ -162,13 +163,13 @@ public:
     virtual void finish() override {}
     virtual void emergencyShutdown() override {}
 
-    virtual void setMatrix(unsigned char* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols, uint32_t op_size) override {
+    virtual void setMatrix(void* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols) override {
         auto& matrix = (*matrices)[arrayID];
 
         // Resize the matrix to fit the data
         matrix.resize(num_rows * num_cols);
 
-        // Build matrix from read response data
+/*        // Build matrix from read response data
         for (uint32_t i = 0; i < num_rows; i++) { // for each row in matrix
             for (uint32_t j = 0; j < num_cols; j++) { // for each entry in a matrix row
                 uint32_t elem_start = (i * num_rows * op_size) + (j * op_size);
@@ -177,15 +178,15 @@ public:
                             (data[(elem_start + 1)] << 8)  |
                             data[elem_start];
 
-                // std::cout << "Element (" << i << ", " << j << "): " 
-                // << ":   0x" << std::setfill('0') << std::setw(8) 
-                // << std::hex << (0xffffffff & ints_as_uint) << std::dec << std::endl;
+                 std::cout << "Element (" << i << ", " << j << "): " 
+                 << ":   0x" << std::setfill('0') << std::setw(8) 
+                 << std::hex << (0xffffffff & ints_as_uint) << std::dec << std::endl;
 
                 float value = *reinterpret_cast<float*>(&ints_as_uint);
                 matrix[i * num_cols + j] = value;
             }
         }
-
+*/
         std::cout << "Matrix for array " << arrayID << ":" << std::endl;
         for (auto i = 0; i < num_rows; i++) {
             for (auto j = 0; j < num_cols; j++) {
@@ -202,12 +203,12 @@ public:
         }
     }
 
-    virtual void setInputVector(unsigned char* data, uint32_t arrayID, uint32_t num_elem, uint32_t op_size) override {
+    virtual void setInputVector(void* data, uint32_t arrayID, uint32_t num_elem) override {
         auto& inVec = (*inVecs)[arrayID];
 
-        // build input vector from read response
+/*        // build input vector from read response
         for (uint32_t i = 0; i < num_elem; i++) { // for each entry in input vector
-            uint32_t start = i * op_size;
+            uint32_t start = i * inputOperandSize;
             uint32_t ints_as_uint = (data[(start + 3)] << 24) |
                                 (data[(start + 2)] << 16) |
                                 (data[(start + 1)] << 8)  |
@@ -217,7 +218,7 @@ public:
             float value = *reinterpret_cast<float*>(&ints_as_uint);
             inVec[i] = value;
         }
-
+*/
         std::cout << "Loaded array " << arrayID << ":" << std::endl;
         for (int i = 0; i < num_elem; i++) {
             std::cout << inVec[i] << " ";
@@ -256,7 +257,6 @@ protected:
     TimeConverter* latencyTC; //TimeConverter corrosponding to the above
 
     uint64_t size; // dimensions of matrix and length of input and output vectors
-    uint64_t inputOperandSize; // size of operand in each entry in bytes
     std::string CrossSimJSON;
 
     // bunch of C++/Python conversion variables

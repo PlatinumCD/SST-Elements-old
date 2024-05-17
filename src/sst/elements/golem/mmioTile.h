@@ -22,11 +22,11 @@
 
 #include "sst/elements/golem/vroccanalog.h"
 
-#ifdef MANUAL_COMPUTE_ARRAY
+//#ifdef MANUAL_COMPUTE_ARRAY
 	#include "manualMVMComputeArray.h"
-#else
-	#include "crossSimComputeArray.h"
-#endif
+//#else
+//	#include "crossSimComputeArray.h"
+//#endif
 
 namespace SST {
 namespace Golem {
@@ -106,9 +106,9 @@ private:
     std::vector<char> arrayStates;
 
     //Data structures corrosponding to the physical input and output registers
-    std::vector<std::vector<float>> arrayIns;
-    std::vector<std::vector<float>> arrayOuts;
-    std::vector<std::vector<float>> matrices;
+    std::vector<std::vector<int64_t>> arrayIns;
+    std::vector<std::vector<int64_t>> arrayOuts;
+    std::vector<std::vector<int64_t>> matrices;
 
     // Even though MMIOTile does not need a clock the array objects uses the parent TimeConverter
     TimeConverter *clockTC;                 // Clock object

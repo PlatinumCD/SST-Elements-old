@@ -29,6 +29,10 @@
 #include <queue>
 #include <limits>
 
+#include <iomanip>
+#include <iostream>
+#include <fstream>
+
 #define VANADIS_RISCV_FUNC7_MASK  0xFE000000
 
 using namespace SST::Interfaces;
@@ -37,10 +41,10 @@ using namespace SST::Golem;
 namespace SST {
 namespace Golem {
 
-class VanadisRoCCAnalog : public SST::Vanadis::VanadisRoCCInterface {
+class RoCCAnalog : public SST::Vanadis::VanadisRoCCInterface {
 
 public:
-    SST_ELI_REGISTER_SUBCOMPONENT(VanadisRoCCAnalog, "golem", "VanadisRoCCAnalog",
+    SST_ELI_REGISTER_SUBCOMPONENT(RoCCAnalog, "golem", "RoCCAnalog",
                                           SST_ELI_ELEMENT_VERSION(1, 0, 0),
                                           "Implements a RoCC accelerator interface for the analog core",
                                           SST::Vanadis::VanadisRoCCInterface)
@@ -64,34 +68,33 @@ public:
 
     SST_ELI_DOCUMENT_STATISTICS({ "roccs_issued", "Count number of rocc instructions that are issued", "operations", 1 })
 
-    VanadisRoCCAnalog(ComponentId_t id, Params& params) : VanadisRoCCInterface(id, params), max_instructions(params.find<size_t>("max_instructions", 8)) {
+    RoCCAnalog(ComponentId_t id, Params& params) : VanadisRoCCInterface(id, params), max_instructions(params.find<size_t>("max_instructions", 8)) {
         stat_roccs_issued = registerStatistic<uint64_t>("roccs_issued", "1");
         UnitAlgebra clock = params.find<UnitAlgebra>("clock", "1GHz");
         
         mmioStartAddr = params.find<uint64_t>("mmioAddr", 0);
+        numArrays = params.find<uint64_t>("numArrays", 1);
         arrayInputSize = params.find<uint64_t>("arrayInputSize", 3);
         arrayOutputSize = params.find<uint64_t>("arrayOutputSize", 3);
-
-        numArrays = params.find<uint64_t>("numArrays", 1);
         inputOperandSize = params.find<uint64_t>("inputOperandSize", 4);
         outputOperandSize = params.find<uint64_t>("outputOperandSize", 4);
 
         output->verbose(CALL_INFO, 1, 0, "%s: numArrays: %d, arrayInputSize: %d, arrayOutputSize: %d \n",
             getName().c_str(), numArrays, arrayInputSize, arrayOutputSize);
 
-        std_mem_handlers = new VanadisRoCCAnalog::StandardMemHandlers(this, output);
+        std_mem_handlers = new RoCCAnalog::StandardMemHandlers(this, output);
         busy = false;
 
         // Create memory interface
         memInterface = loadUserSubComponent<Interfaces::StandardMem>(
             "memory_interface", ComponentInfo::SHARE_PORTS | ComponentInfo::INSERT_STATS, getTimeConverter("1ps"),
-            new StandardMem::Handler<VanadisRoCCAnalog>(this, &VanadisRoCCAnalog::processIncomingDataCacheEvent)
+            new StandardMem::Handler<RoCCAnalog>(this, &RoCCAnalog::processIncomingDataCacheEvent)
         );
 
         // Create compute array
         array = loadUserSubComponent<Golem::ComputeArray>(
             "array", ComponentInfo::SHARE_NONE, getTimeConverter("1ps"), 
-            new SST::Event::Handler<VanadisRoCCAnalog>(this, &VanadisRoCCAnalog::handleArrayEvent), 
+            new SST::Event::Handler<RoCCAnalog>(this, &RoCCAnalog::handleArrayEvent), 
             &arrayIns, &arrayOuts, &matrices
         );
 
@@ -99,9 +102,13 @@ public:
         if ( !array ) {
             output->fatal(CALL_INFO, -1, "Unable to load array model subcomponent.\n");
         }
+
+        oldBuffer_ = std::cout.rdbuf();//CAMDELETE
+        nullStream_.open("/dev/null");  // On Windows use "NUL"//CAMDELETE
+        std::cout.rdbuf(nullStream_.rdbuf()); //CAMDELETE
     }
 
-    virtual ~VanadisRoCCAnalog() {
+    virtual ~RoCCAnalog() {
         for(auto roccCmd_q_itr = roccCmd_q.begin(); roccCmd_q_itr != roccCmd_q.end(); ) {
             delete (*roccCmd_q_itr);
             roccCmd_q_itr = roccCmd_q.erase(roccCmd_q_itr);
@@ -160,6 +167,7 @@ public:
             for (int j = 0; j < arrayInputSize; j++){
                 arrayIns[i][j] = 0;
             }
+
             for (int j = 0; j < arrayOutputSize; j++){
                 arrayOuts[i][j] = 0;
             }
@@ -223,11 +231,14 @@ public:
     // issues the read request for the matrix that will be set in the analog array
     // setting the matrix into compute array happens in read request response handler
     void setMatrix() {
-        StandardMem::Request* load_req = nullptr;
 
+        std::cout.rdbuf(oldBuffer_); //CAMDELETE
+        StandardMem::Request* load_req = nullptr;
         uint32_t load_matrix_flag = 0x0;
-        uint64_t matrix_size = arrayInputSize * arrayInputSize * inputOperandSize;
+        uint64_t matrix_size = arrayInputSize * arrayOutputSize * inputOperandSize;
+        std::cout << "Matrix size req: " << matrix_size << std::endl;
         load_req = new StandardMem::Read(curr_cmd->rs1, matrix_size, load_matrix_flag,  curr_cmd->rs1, 0, 0);
+        std::cout << load_req->getString() << std::endl;
         output->verbose(CALL_INFO, 9, 0, "----> Read Req: physAddr: %llx, size: %llx, vAddr: %llx, inst ptr: %llx, tid: %llx\n", 
                         curr_cmd->rs1, matrix_size, curr_cmd->rs1, 0, 0);
 
@@ -238,8 +249,7 @@ public:
 
     void loadVector() {
         StandardMem::Request* load_req = nullptr;
-
-	uint32_t load_vector_flag = 0x1;
+    	uint32_t load_vector_flag = 0x1;
         uint64_t vector_size = arrayInputSize * inputOperandSize;
         load_req = new StandardMem::Read(curr_cmd->rs1, vector_size, load_vector_flag, curr_cmd->rs1, 0, 0);
         output->verbose(CALL_INFO, 9, 0, "----> Read Req: physAddr: %llx, size: %llx, vAddr: %llx, inst ptr: %llx, tid: %llx\n", 
@@ -259,15 +269,54 @@ public:
         StandardMem::Request* store_req = nullptr;
 
         uint64_t vector_size = arrayOutputSize * outputOperandSize;
-        std::vector<uint8_t> payload(vector_size);	
         uint64_t rs2 = curr_cmd->rs2;
+        auto& outVec = arrayOuts[rs2];
+        std::vector<uint8_t> payload(vector_size);
 
-        for (int i = 0; i < arrayOutputSize; i++) {
-                unsigned int ch = *reinterpret_cast<unsigned int*>(&arrayOuts[rs2][i]);
-                for (int j = 0; j < outputOperandSize; j++) {
-                        payload.at(i*outputOperandSize + j) = (ch >> j*8) & 0xff;
-                }
-        }
+        auto fill_payload = [&](std::vector<int64_t>& vec) {
+            switch (outputOperandSize) {
+                case 1: 
+                    for (size_t i = 0; i < arrayOutputSize; i++) {
+                        int8_t val = static_cast<int8_t>(vec[i]);
+                        payload.at(i) = val;
+                    }
+                    break;
+
+                case 2: 
+                    for (size_t i = 0; i < arrayOutputSize; i++) {
+                        int16_t val = static_cast<int16_t>(vec[i]);
+                        int8_t *byte = reinterpret_cast<int8_t*>(&val);
+                        for (size_t j = 0; j < outputOperandSize; j++) {
+                            payload.at(i*outputOperandSize + j) = (byte[j]);
+                        }
+                    }
+                    break;
+
+                case 4: 
+                    for (size_t i = 0; i < arrayOutputSize; i++) {
+                        int32_t val = static_cast<int32_t>(vec[i]);
+                        int8_t *byte = reinterpret_cast<int8_t*>(&val);
+                        for (size_t j = 0; j < outputOperandSize; j++) {
+                            payload.at(i*outputOperandSize + j) = (byte[j]);
+                        }
+                    }
+                    break;
+
+                case 8: 
+                    for (size_t i = 0; i < arrayOutputSize; i++) {
+                        int32_t val = vec[i];
+                        int8_t *byte = reinterpret_cast<int8_t*>(&val);
+                        for (size_t j = 0; j < outputOperandSize; j++) {
+                            payload.at(i*outputOperandSize + j) = (byte[j]);
+                        }
+                    }
+                    break;
+                default:
+                    break;
+            }
+        };
+
+        fill_payload(outVec);
 
         std::cout << "Stored array " << rs2 << ":" << std::endl;
         for (int i = 0; i < arrayOutputSize; i++) {
@@ -276,9 +325,12 @@ public:
         std::cout << std::endl;
         std::cout << std::endl;
 
-        store_req = new StandardMem::Write(curr_cmd->rs1, 4, payload,
+
+        uint64_t bytes_to_write = arrayOutputSize * outputOperandSize;
+        store_req = new StandardMem::Write(curr_cmd->rs1, outputOperandSize, payload,
             false, 0, curr_cmd->rs1, 0, 0);
         memInterface->send(store_req);
+
     }
 
     void moveVector() {
@@ -321,14 +373,16 @@ public:
 
     class StandardMemHandlers : public Interfaces::StandardMem::RequestHandler {
     public:
-        friend class VanadisRoCCAnalog;
+        friend class RoCCAnalog;
 
-        StandardMemHandlers(VanadisRoCCAnalog* rocc, SST::Output* output) :
+        StandardMemHandlers(RoCCAnalog* rocc, SST::Output* output) :
                 Interfaces::StandardMem::RequestHandler(output), rocc(rocc) {output = output;}
         
         virtual ~StandardMemHandlers() {}
 
         virtual void handle(StandardMem::ReadResp* ev) {
+
+
             out->verbose(CALL_INFO, 2, 0, "-> handle read-response (virt-addr: 0x%llx)\n", ev->vAddr);
             SST::Vanadis::RoCCCommand* rocc_cmd = rocc->curr_cmd; // need to grab the instruction that generated the read request
 
@@ -338,36 +392,46 @@ public:
 		        return;
             }
 
-            uint64_t reg_offset  = 0;
-            uint64_t addr_offset = 0;            
-            uint64_t reg_width = 8;
-
-            std::vector<uint8_t> register_value(reg_width);
-            for (auto i = 0; i < reg_width; ++i) {
-                register_value.at(reg_offset + addr_offset + i) = ev->data[i];
-            }
-
-            uint64_t rs2 = rocc_cmd->rs2;
             switch (ev->getAllFlags()) { // treat read response data differently based on who issued it (flags)
 
                 case 0x0: // read response data is matrix to be set
                 {
                     rocc->output->verbose(CALL_INFO, 2, 0, "Set matrix read response detected\n");
+
+                    std::cout << ev->getString() << std::endl;
+
+                    std::cout << "START:" << std::endl;
+                    for (int i = 0; i < ev->size; i++) {
+                        std::cout << "Byte[" << std::setw(3) << i << "]: 0x" << 
+                            std::hex << std::setw(2) << 
+                            std::setfill('0') << 
+                            (static_cast<int8_t>(ev->data[i]) & 0xff) << 
+                            std::dec << std::endl;
+                    }
+                    std::cout << "END" << std::endl;
+
+        rocc->oldBuffer_ = std::cout.rdbuf(); //CAMDELETE
+        rocc->nullStream_.open("/dev/null");  // On Windows use "NUL" //CAMDELETE
+        std::cout.rdbuf(rocc->nullStream_.rdbuf()); //CAMDELETE
+
+
+                    uint32_t array_id = rocc_cmd->rs2;
                     uint32_t op_size = rocc->inputOperandSize;
                     uint32_t num_cols = rocc->arrayInputSize;
                     uint32_t num_rows = ev->size / (num_cols * op_size); // compute number of rows in matrix
-                    unsigned char* matrix_data = ev->data.data();
-                    rocc->array->setMatrix(matrix_data, rs2, num_rows, num_cols, op_size);
+                    void* matrix_data = static_cast<void*>(ev->data.data());
+                    rocc->array->setMatrix(matrix_data, array_id, num_rows, num_cols);
                     rocc->completeRoCC(0);
                 } break;
 
                 case 0x1: // read response data  is input vector
                 {
                     rocc->output->verbose(CALL_INFO, 2, 0, "Input vector read response detected\n");
+                    uint32_t array_id = rocc_cmd->rs2;
                     uint32_t op_size = rocc->inputOperandSize;
                     uint32_t num_elem = rocc->arrayInputSize;
-                    unsigned char* vector_data = ev->data.data();
-                    rocc->array->setInputVector(vector_data, rs2, num_elem, op_size);
+                    void* vector_data = static_cast<void*>(ev->data.data());
+                    rocc->array->setInputVector(vector_data, array_id, num_elem);
                     rocc->completeRoCC(0);
                 } break;
 
@@ -391,7 +455,7 @@ public:
             rocc->completeRoCC(0);
         }
     
-        VanadisRoCCAnalog* rocc;
+        RoCCAnalog* rocc;
         SST::Output* output;
     };
 
@@ -430,9 +494,9 @@ public:
     Statistic<uint64_t>* stat_roccs_issued;
 
     Golem::ComputeArray* array;
-    std::vector<std::vector<float>> arrayIns;
-    std::vector<std::vector<float>> arrayOuts;
-    std::vector<std::vector<float>> matrices;
+    std::vector<std::vector<int64_t>> arrayIns;
+    std::vector<std::vector<int64_t>> arrayOuts;
+    std::vector<std::vector<int64_t>> matrices;
     std::vector<char> arrayStates;
 
     // Tile Parameters
@@ -450,6 +514,9 @@ public:
     uint64_t outputDataSize;
     uint64_t inputTotalSize;
     uint64_t outputTotalSize;
+
+    std::ofstream nullStream_;
+    std::streambuf* oldBuffer_;
 
 };
 

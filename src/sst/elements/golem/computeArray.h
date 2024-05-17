@@ -32,9 +32,9 @@ public:
     SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Golem::ComputeArray,
         TimeConverter *,
         Event::HandlerBase*, 
-        std::vector<std::vector<float>>*, 
-        std::vector<std::vector<float>>*,
-	std::vector<std::vector<float>>*
+        std::vector<std::vector<int64_t>>*, 
+        std::vector<std::vector<int64_t>>*,
+        std::vector<std::vector<int64_t>>*
     )
 
     SST_ELI_DOCUMENT_PARAMS(
@@ -44,9 +44,9 @@ public:
     ComputeArray(ComponentId_t id, Params& params,
         TimeConverter * tc,
         Event::HandlerBase * handler,
-        std::vector<std::vector<float>>* ins,
-        std::vector<std::vector<float>>* outs,
-	std::vector<std::vector<float>>* mats) : SubComponent(id) {
+        std::vector<std::vector<int64_t>>* ins,
+        std::vector<std::vector<int64_t>>* outs,
+	    std::vector<std::vector<int64_t>>* mats) : SubComponent(id) {
 
         out.init("", params.find<int>("verbose", 1), 0, Output::STDOUT);
 
@@ -85,8 +85,8 @@ public:
     virtual void finish() = 0;
     virtual void emergencyShutdown() = 0;
     
-    virtual void setMatrix(unsigned char* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols, uint32_t op_size) = 0;
-    virtual void setInputVector(unsigned char* data, uint32_t arrayID, uint32_t num_elem, uint32_t opsize) = 0; 
+    virtual void setMatrix(void* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols) = 0;
+    virtual void setInputVector(void* data, uint32_t arrayID, uint32_t num_elem) = 0; 
     virtual void compute(uint32_t arrayID) = 0;
 
     // getArrayLatency should return a number of cycles in the component TimeBase for the array latency
@@ -100,10 +100,13 @@ protected:
     uint32_t numArrays; //Number of arrays in this tile
     uint32_t arrayInSize; //Size of arrayIn buffer
     uint32_t arrayOutSize; //Size of arrayOut buffer
+    int inputOperandSize;
+    int outputOperandSize;
 
-    std::vector<std::vector<float>>* inVecs;
-    std::vector<std::vector<float>>* outVecs;
-    std::vector<std::vector<float>>* matrices;
+
+    std::vector<std::vector<int64_t>>* inVecs;
+    std::vector<std::vector<int64_t>>* outVecs;
+    std::vector<std::vector<int64_t>>* matrices;
 
     SST::Link * selfLink; // self link for delay events
     SST::Event::HandlerBase * tileHandler; //Event handler to call in the tile

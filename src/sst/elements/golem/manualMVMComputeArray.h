@@ -21,6 +21,9 @@
 #include <sst/core/component.h>
 #include "computeArray.h"
 
+#include <bitset>
+
+
 #include <vector>
 
 namespace SST {
@@ -43,14 +46,16 @@ public:
         {"numArrays",          "Number of distinct arrays in the the tile.", "1"},
         {"arrayInputSize",     "Length of input vector. Implies array rows."},
         {"arrayOutputSize",    "Length of output vector. Implies array columns."},
+        {"inputOperandSize",   "Size of input operand in bytes.", "4"},
+        {"outputOperandSize",  "Size of output operand in bytes.", "4"}
     )
 
     ManualMVMComputeArray(ComponentId_t id, Params& params, 
         TimeConverter * tc,
         Event::HandlerBase * handler,
-        std::vector<std::vector<float>>* ins,
-        std::vector<std::vector<float>>* outs,
-	    std::vector<std::vector<float>>* mats) 
+        std::vector<std::vector<int64_t>>* ins,
+        std::vector<std::vector<int64_t>>* outs,
+	    std::vector<std::vector<int64_t>>* mats) 
     : ComputeArray(id, params, tc, handler, ins, outs, mats) {
         
         //All operations have the same latency so just set it here
@@ -62,6 +67,8 @@ public:
         numArrays = params.find<uint64_t>("numArrays", 1);
         arrayInSize = params.find<uint64_t>("arrayInputSize");
         arrayOutSize = params.find<uint64_t>("arrayOutputSize");
+        inputOperandSize = params.find<uint64_t>("inputOperandSize", 4);
+        outputOperandSize = params.find<uint64_t>("outputOperandSize", 4);
 
         out.init("", params.find<int>("verbose", 1), 0, Output::STDOUT);
     }
@@ -71,28 +78,24 @@ public:
     virtual void finish() override {}
     virtual void emergencyShutdown() override {}
 
-    virtual void setMatrix(unsigned char* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols, uint32_t op_size) override {
+    virtual void setMatrix(void* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols) override {
         auto& matrix = (*matrices)[arrayID];
 
         // Resize the matrix to fit the data
         matrix.resize(num_rows * num_cols);
 
-        // Build matrix from read response data
-        for (uint32_t i = 0; i < num_rows; i++) { // for each row in matrix
-            for (uint32_t j = 0; j < num_cols; j++) { // for each entry in a matrix row
-                uint32_t elem_start = (i * num_rows * op_size) + (j * op_size);
-                uint32_t ints_as_uint = (data[(elem_start + 3)] << 24) |
-                            (data[(elem_start + 2)] << 16) |
-                            (data[(elem_start + 1)] << 8)  |
-                            data[elem_start];
-
-                // std::cout << "Element (" << i << ", " << j << "): " 
-                // << ":   0x" << std::setfill('0') << std::setw(8) 
-                // << std::hex << (0xffffffff & ints_as_uint) << std::dec << std::endl;
-
-                float value = *reinterpret_cast<float*>(&ints_as_uint);
-                matrix[i * num_cols + j] = value;
+        auto assign_data = [&](auto ptr) {
+            for (auto i = 0; i < num_rows * num_cols; i++) {
+                matrix[i] = static_cast<int64_t>(ptr[i]);
             }
+        };
+
+        switch (inputOperandSize) {
+            case 1: assign_data(static_cast<int8_t*>(data)); break;
+            case 2: assign_data(static_cast<int16_t*>(data)); break;
+            case 4: assign_data(static_cast<int32_t*>(data)); break;
+            case 8: assign_data(static_cast<int64_t*>(data)); break;
+            default: /* handle error */ break;
         }
 
         std::cout << "Matrix for array " << arrayID << ":" << std::endl;
@@ -105,20 +108,21 @@ public:
         std::cout << std::endl;
     }
 
-    virtual void setInputVector(unsigned char* data, uint32_t arrayID, uint32_t num_cols, uint32_t op_size) override {
+    virtual void setInputVector(void* data, uint32_t arrayID, uint32_t num_cols) override {
         auto& inVec = (*inVecs)[arrayID];
 
-        // build input vector from read response
-        for (uint32_t i = 0; i < num_cols; i++) { // for each entry in input vector
-            uint32_t start = i * op_size;
-            uint32_t ints_as_uint = (data[(start + 3)] << 24) |
-                        (data[(start + 2)] << 16) |
-                        (data[(start + 1)] << 8)  |
-                        data[start];
+        auto assign_data = [&](auto ptr) {
+            for(size_t i = 0; i < num_cols; ++i) {
+                inVec[i] = static_cast<int64_t>(ptr[i]);
+            }
+        };
 
-            // std::cout << "I(" << i << "): " << std::setfill('0') << std::setw(8) << std::hex << (0xffffffff & ints_as_uint) << std::endl;
-            float value = *reinterpret_cast<float*>(&ints_as_uint);
-            inVec[i] = value;
+        switch (inputOperandSize) {
+            case 1: assign_data(static_cast<int8_t*>(data)); break;
+            case 2: assign_data(static_cast<int16_t*>(data)); break;
+            case 4: assign_data(static_cast<int32_t*>(data)); break;
+            case 8: assign_data(static_cast<int64_t*>(data)); break;
+            default: /* handle error */ break;
         }
 
         std::cout << "Loaded array " << arrayID << ":" << std::endl;
@@ -146,6 +150,7 @@ public:
             }
             std::cout << outVec[row] << " ";
         }
+        std::cout << std::endl;
         std::cout << std::endl;
     }
     
