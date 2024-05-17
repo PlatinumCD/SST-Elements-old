@@ -86,7 +86,7 @@ public:
     virtual void emergencyShutdown() = 0;
     
     virtual void setMatrix(void* data, uint32_t arrayID, uint32_t num_rows, uint32_t num_cols) = 0;
-    virtual void setInputVector(void* data, uint32_t arrayID, uint32_t num_elem) = 0; 
+    virtual void setInputVector(void* data, uint32_t arrayID, uint32_t num_cols) = 0; 
     virtual void compute(uint32_t arrayID) = 0;
 
     // getArrayLatency should return a number of cycles in the component TimeBase for the array latency

@@ -101,7 +101,7 @@ public:
         std::cout << "Matrix for array " << arrayID << ":" << std::endl;
         for (auto i = 0; i < num_rows; i++) {
             for (auto j = 0; j < num_cols; j++) {
-                std::cout << matrix[i * num_cols + j] << " ";
+                std::cout << std::setw(3) << matrix[i * num_cols + j] << " ";
             }
             std::cout << std::endl;
         }
@@ -127,7 +127,7 @@ public:
 
         std::cout << "Loaded array " << arrayID << ":" << std::endl;
         for (int i = 0; i < num_cols; i++) {
-            std::cout << inVec[i] << " ";
+            std::cout << std::setw(3) << inVec[i] << " ";
         }
         std::cout << std::endl;
         std::cout << std::endl;
@@ -148,7 +148,7 @@ public:
             for (auto col = 0; col < arrayInSize; col++) {
                 outVec[row] += matrix[row * arrayInSize + col] * inVec[col];
             }
-            std::cout << outVec[row] << " ";
+            std::cout << std::setw(3) << outVec[row] << " ";
         }
         std::cout << std::endl;
         std::cout << std::endl;

@@ -90,16 +90,26 @@ public:
 
         pyArrayIn = new PyObject*[numArrays];
         npArrayIn = new PyArrayObject*[numArrays];
+
+
+        int npy_type;
+        switch (inputOperandSize) {
+            case 1: npy_type = NPY_INT8; break;
+            case 2: npy_type = NPY_INT16; break;
+            case 4: npy_type = NPY_INT32; break;
+            case 8: npy_type = NPY_INT64; break;
+            default: throw std::invalid_argument("Unsupported input operand size");
+        }
+
         for (int i = 0; i < numArrays; i++) {
             auto& cMatrix = (*matrices)[i];
             auto& cArrayIn = (*inVecs)[i];
 
-            pyMatrix[i] = PyArray_SimpleNewFromData(matrixNumDims, matrixDims, 
-                    NPY_FLOAT32, reinterpret_cast<void*> (cMatrix.data()));
+            pyMatrix[i] = PyArray_SimpleNewFromData(matrixNumDims, matrixDims, npy_type, reinterpret_cast<void*>(cMatrix.data()));
             npMatrix[i] = reinterpret_cast<PyArrayObject*>(pyMatrix[i]);
-            pyArrayIn[i] = PyArray_SimpleNewFromData(arrayInNumDims, arrayInDim,
-                    NPY_FLOAT32, reinterpret_cast<void*> (cArrayIn.data()));
+            pyArrayIn[i] = PyArray_SimpleNewFromData(arrayInNumDims, arrayInDim, npy_type, reinterpret_cast<void*>(cArrayIn.data()));
             npArrayIn[i] = reinterpret_cast<PyArrayObject*>(pyArrayIn[i]);
+
         }
 
         //import CrossSim
@@ -169,28 +179,24 @@ public:
         // Resize the matrix to fit the data
         matrix.resize(num_rows * num_cols);
 
-/*        // Build matrix from read response data
-        for (uint32_t i = 0; i < num_rows; i++) { // for each row in matrix
-            for (uint32_t j = 0; j < num_cols; j++) { // for each entry in a matrix row
-                uint32_t elem_start = (i * num_rows * op_size) + (j * op_size);
-                uint32_t ints_as_uint = (data[(elem_start + 3)] << 24) |
-                            (data[(elem_start + 2)] << 16) |
-                            (data[(elem_start + 1)] << 8)  |
-                            data[elem_start];
-
-                 std::cout << "Element (" << i << ", " << j << "): " 
-                 << ":   0x" << std::setfill('0') << std::setw(8) 
-                 << std::hex << (0xffffffff & ints_as_uint) << std::dec << std::endl;
-
-                float value = *reinterpret_cast<float*>(&ints_as_uint);
-                matrix[i * num_cols + j] = value;
+        auto assign_data = [&](auto ptr) {
+            for (auto i = 0; i < num_rows * num_cols; i++) {
+                matrix[i] = static_cast<int64_t>(ptr[i]);
             }
+        };
+
+        switch (inputOperandSize) {
+            case 1: assign_data(static_cast<int8_t*>(data)); break;
+            case 2: assign_data(static_cast<int16_t*>(data)); break;
+            case 4: assign_data(static_cast<int32_t*>(data)); break;
+            case 8: assign_data(static_cast<int64_t*>(data)); break;
+            default: /* handle error */ break;
         }
-*/
+
         std::cout << "Matrix for array " << arrayID << ":" << std::endl;
         for (auto i = 0; i < num_rows; i++) {
             for (auto j = 0; j < num_cols; j++) {
-                std::cout << matrix[i * num_cols + j] << " ";
+                std::cout << std::setw(3) << matrix[i * num_cols + j] << " ";
             }
             std::cout << std::endl;
         }
@@ -203,25 +209,26 @@ public:
         }
     }
 
-    virtual void setInputVector(void* data, uint32_t arrayID, uint32_t num_elem) override {
+    virtual void setInputVector(void* data, uint32_t arrayID, uint32_t num_cols) override {
         auto& inVec = (*inVecs)[arrayID];
 
-/*        // build input vector from read response
-        for (uint32_t i = 0; i < num_elem; i++) { // for each entry in input vector
-            uint32_t start = i * inputOperandSize;
-            uint32_t ints_as_uint = (data[(start + 3)] << 24) |
-                                (data[(start + 2)] << 16) |
-                                (data[(start + 1)] << 8)  |
-                                data[start];
+        auto assign_data = [&](auto ptr) {
+            for(size_t i = 0; i < num_cols; ++i) {
+                inVec[i] = static_cast<int64_t>(ptr[i]);
+            }
+        };
 
-            // std::cout << "I(" << i << "): " << std::setfill('0') << std::setw(8) << std::hex << (0xffffffff & ints_as_uint) << std::endl;
-            float value = *reinterpret_cast<float*>(&ints_as_uint);
-            inVec[i] = value;
+        switch (inputOperandSize) {
+            case 1: assign_data(static_cast<int8_t*>(data)); break;
+            case 2: assign_data(static_cast<int16_t*>(data)); break;
+            case 4: assign_data(static_cast<int32_t*>(data)); break;
+            case 8: assign_data(static_cast<int64_t*>(data)); break;
+            default: /* handle error */ break;
         }
-*/
+
         std::cout << "Loaded array " << arrayID << ":" << std::endl;
-        for (int i = 0; i < num_elem; i++) {
-            std::cout << inVec[i] << " ";
+        for (int i = 0; i < num_cols; i++) {
+            std::cout << std::setw(3) << inVec[i] << " ";
         }
         std::cout << std::endl;
         std::cout << std::endl;
@@ -237,13 +244,15 @@ public:
             PyErr_Print();
         }
         npArrayOut = reinterpret_cast<PyArrayObject*> (pyArrayOut);
-        cArrayOut = reinterpret_cast<float*> (PyArray_DATA(npArrayOut));
+        cArrayOut = reinterpret_cast<int64_t*> (PyArray_DATA(npArrayOut));
+
         int len = PyArray_SIZE(npArrayOut);
         std::copy(cArrayOut, cArrayOut + len, outVec.begin());
         std::cout << "CrossSim MVM on array " << arrayID << ":" << std::endl;
         for (int i = 0; i < size; i++) {
             std::cout << outVec[i] << " ";
         }
+        std::cout << std::endl;
         std::cout << std::endl;
     }
 
@@ -268,7 +277,7 @@ protected:
     PyObject** pyArrayIn;
     PyArrayObject** npArrayIn;
 
-    float* cArrayOut; // output vector
+    int64_t* cArrayOut; // output vector
     PyObject* pyArrayOut;
     PyArrayObject* npArrayOut;
     

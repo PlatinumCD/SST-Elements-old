@@ -21,12 +21,7 @@
 #include <sst/core/interfaces/stdMem.h>
 
 #include "sst/elements/golem/vroccanalog.h"
-
-//#ifdef MANUAL_COMPUTE_ARRAY
-	#include "manualMVMComputeArray.h"
-//#else
-//	#include "crossSimComputeArray.h"
-//#endif
+#include "manualMVMComputeArray.h"
 
 namespace SST {
 namespace Golem {

@@ -102,10 +102,6 @@ public:
         if ( !array ) {
             output->fatal(CALL_INFO, -1, "Unable to load array model subcomponent.\n");
         }
-
-        oldBuffer_ = std::cout.rdbuf();//CAMDELETE
-        nullStream_.open("/dev/null");  // On Windows use "NUL"//CAMDELETE
-        std::cout.rdbuf(nullStream_.rdbuf()); //CAMDELETE
     }
 
     virtual ~RoCCAnalog() {
@@ -232,7 +228,6 @@ public:
     // setting the matrix into compute array happens in read request response handler
     void setMatrix() {
 
-        std::cout.rdbuf(oldBuffer_); //CAMDELETE
         StandardMem::Request* load_req = nullptr;
         uint32_t load_matrix_flag = 0x0;
         uint64_t matrix_size = arrayInputSize * arrayOutputSize * inputOperandSize;
@@ -274,45 +269,18 @@ public:
         std::vector<uint8_t> payload(vector_size);
 
         auto fill_payload = [&](std::vector<int64_t>& vec) {
-            switch (outputOperandSize) {
-                case 1: 
-                    for (size_t i = 0; i < arrayOutputSize; i++) {
-                        int8_t val = static_cast<int8_t>(vec[i]);
-                        payload.at(i) = val;
-                    }
-                    break;
-
-                case 2: 
-                    for (size_t i = 0; i < arrayOutputSize; i++) {
-                        int16_t val = static_cast<int16_t>(vec[i]);
-                        int8_t *byte = reinterpret_cast<int8_t*>(&val);
-                        for (size_t j = 0; j < outputOperandSize; j++) {
-                            payload.at(i*outputOperandSize + j) = (byte[j]);
-                        }
-                    }
-                    break;
-
-                case 4: 
-                    for (size_t i = 0; i < arrayOutputSize; i++) {
-                        int32_t val = static_cast<int32_t>(vec[i]);
-                        int8_t *byte = reinterpret_cast<int8_t*>(&val);
-                        for (size_t j = 0; j < outputOperandSize; j++) {
-                            payload.at(i*outputOperandSize + j) = (byte[j]);
-                        }
-                    }
-                    break;
-
-                case 8: 
-                    for (size_t i = 0; i < arrayOutputSize; i++) {
-                        int32_t val = vec[i];
-                        int8_t *byte = reinterpret_cast<int8_t*>(&val);
-                        for (size_t j = 0; j < outputOperandSize; j++) {
-                            payload.at(i*outputOperandSize + j) = (byte[j]);
-                        }
-                    }
-                    break;
-                default:
-                    break;
+            for (size_t i = 0; i < arrayOutputSize; i++) {
+                int8_t* byte;
+                switch (outputOperandSize) {
+                    case 1: byte = reinterpret_cast<int8_t*>(&vec[i]); break;
+                    case 2: byte = reinterpret_cast<int8_t*>(reinterpret_cast<int16_t*>(&vec[i])); break;
+                    case 4: byte = reinterpret_cast<int8_t*>(reinterpret_cast<int32_t*>(&vec[i])); break;
+                    case 8: byte = reinterpret_cast<int8_t*>(&vec[i]); break;
+                    default: return;
+                }
+                for (size_t j = 0; j < outputOperandSize; j++) {
+                    payload.at(i * outputOperandSize + j) = byte[j];
+                }
             }
         };
 
@@ -325,8 +293,6 @@ public:
         std::cout << std::endl;
         std::cout << std::endl;
 
-
-        uint64_t bytes_to_write = arrayOutputSize * outputOperandSize;
         store_req = new StandardMem::Write(curr_cmd->rs1, outputOperandSize, payload,
             false, 0, curr_cmd->rs1, 0, 0);
         memInterface->send(store_req);
@@ -398,8 +364,8 @@ public:
                 {
                     rocc->output->verbose(CALL_INFO, 2, 0, "Set matrix read response detected\n");
 
+                    /*
                     std::cout << ev->getString() << std::endl;
-
                     std::cout << "START:" << std::endl;
                     for (int i = 0; i < ev->size; i++) {
                         std::cout << "Byte[" << std::setw(3) << i << "]: 0x" << 
@@ -409,11 +375,7 @@ public:
                             std::dec << std::endl;
                     }
                     std::cout << "END" << std::endl;
-
-        rocc->oldBuffer_ = std::cout.rdbuf(); //CAMDELETE
-        rocc->nullStream_.open("/dev/null");  // On Windows use "NUL" //CAMDELETE
-        std::cout.rdbuf(rocc->nullStream_.rdbuf()); //CAMDELETE
-
+                    */
 
                     uint32_t array_id = rocc_cmd->rs2;
                     uint32_t op_size = rocc->inputOperandSize;
